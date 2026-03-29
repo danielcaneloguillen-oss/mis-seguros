@@ -5,62 +5,52 @@ from datetime import date, timedelta
 
 st.set_page_config(page_title="Mis Seguros", page_icon="📑", layout="wide")
 
-# Conexión con Google Sheets
+# --- CONEXIÓN CON GOOGLE SHEETS ---
 url = st.secrets["connections"]["gsheets"]["spreadsheet"]
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def cargar_datos():
-    df = conn.read(spreadsheet=url, usecols=[0, 1, 2, 3, 4])
+    # Cargamos siempre la Hoja1 para evitar errores de pestaña vacía
+    df = conn.read(spreadsheet=url, worksheet="Hoja1", usecols=[0, 1, 2, 3, 4])
     return df.dropna(how="all")
 
+# --- CARGA Y LIMPIEZA INICIAL ---
 df_seguros = cargar_datos()
-df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento']).dt.date
+
+# Limpiamos las fechas nada más leerlas (Día primero)
+df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento'], dayfirst=True, errors='coerce').dt.date
 
 # --- DISEÑO DE CABECERA ---
 st.title("📑 Mis Pólizas")
-st.caption("Gestión simplificada • Diseño Claro y Moderno")
+st.caption("Gestión de vencimientos con aviso de 45 días")
 
-# --- CÁLCULO DE GASTOS Y ALERTAS ---
-hoy = date.today()
-
-# Convertimos la columna de texto a "Fecha" de verdad para que Python la entienda
-df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento'], errors='coerce').dt.date
-
-# Calculamos el total de dinero (solo de las filas que tengan número)
-total_anual = pd.to_numeric(df_seguros['Prima'], errors='coerce').sum()
-
-# Contamos cuántos vencen en los próximos 30 días
-df_proximos = df_seguros.dropna(subset=['Vencimiento'])
-proximos_30 = len(df_proximos[(df_proximos['Vencimiento'] - hoy).map(lambda x: 0 <= x.days <= 30)])
-
-# --- CONFIGURACIÓN DE ALERTAS (45 DÍAS) ---
+# --- LÓGICA DE ALERTAS (45 DÍAS) ---
 hoy = date.today()
 margen_aviso = hoy + timedelta(days=45)
 
-# Limpiamos la columna de posibles espacios en blanco y forzamos el formato
-df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento'], dayfirst=True, errors='coerce')
-
-# Creamos una columna auxiliar solo para el cálculo (sin horas, solo fecha)
-df_seguros['Fecha_Clean'] = df_seguros['Vencimiento'].dt.date
-
-# Filtramos los avisos usando la fecha limpia
+# Filtramos los que vencen pronto (basándonos en la fecha ya limpia)
 df_alertas = df_seguros[
-    (df_seguros['Fecha_Clean'] <= margen_aviso) & 
-    (df_seguros['Fecha_Clean'] >= hoy)
+    (df_seguros['Vencimiento'] <= margen_aviso) & 
+    (df_seguros['Vencimiento'] >= hoy)
 ].copy()
 
 # --- SEMÁFORO VISUAL ---
 if not df_alertas.empty:
     for _, fila in df_alertas.iterrows():
-        dias_restantes = (fila['Fecha_Clean'] - hoy).days
-        st.info(f"📅 **AVISO**: {fila['Seguro']} vence en {dias_restantes} días ({fila['Fecha_Clean']}).")
+        dias_restantes = (fila['Vencimiento'] - hoy).days
+        if dias_restantes <= 7:
+            st.error(f"🚨 **URGENTE**: {fila['Seguro']} vence en {dias_restantes} días ({fila['Vencimiento']}).")
+        elif dias_restantes <= 15:
+            st.warning(f"⚠️ **ATENCIÓN**: {fila['Seguro']} vence en {dias_restantes} días.")
+        else:
+            st.info(f"📅 **AVISO**: {fila['Seguro']} vence en {dias_restantes} días.")
 
 # --- MÉTRICAS GENERALES ---
 total_anual = pd.to_numeric(df_seguros['Prima'], errors='coerce').sum()
 m1, m2, m3 = st.columns(3)
 m1.metric("Inversión Anual", f"{total_anual:,.2f} €")
 m2.metric("Total Seguros", len(df_seguros))
-m3.metric("Avisos activos (<45d)", len(df_alertas))
+m3.metric("Avisos activos", len(df_alertas))
 
 st.write("---")
 
@@ -79,58 +69,56 @@ with pestana1:
                 "Vencimiento": st.column_config.DateColumn("Vence el", format="DD/MM/YYYY")
             }
         )
+        
         with st.expander("⚙️ Gestión de Póliza Seleccionada"):
-            sel = st.selectbox("Elegir póliza:", df_seguros['Seguro'].unique())
+            sel = st.selectbox("Elegir póliza para renovar o borrar:", df_seguros['Seguro'].unique())
             idx = df_seguros[df_seguros['Seguro'] == sel].index[0]
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("🔄 Renovar (+1 año)", use_container_width=True):
-                    df_seguros.at[idx, 'Vencimiento'] = str(df_seguros.at[idx, 'Vencimiento'] + timedelta(days=365))
-                    conn.update(spreadsheet=url, data=df_seguros)
+                    nueva_fecha = df_seguros.at[idx, 'Vencimiento'] + timedelta(days=365)
+                    df_seguros.at[idx, 'Vencimiento'] = nueva_fecha
+                    conn.update(spreadsheet=url, worksheet="Hoja1", data=df_seguros)
+                    st.success("Renovado. Refrescando...")
                     st.rerun()
             with c2:
                 if st.button("🗑️ Dar de Baja", type="primary", use_container_width=True):
                     df_final = df_seguros.drop(idx)
-                    conn.update(spreadsheet=url, data=df_final)
+                    conn.update(spreadsheet=url, worksheet="Hoja1", data=df_final)
+                    st.success("Eliminado. Refrescando...")
                     st.rerun()
     else:
-        st.info("No hay datos. Ve a 'Nueva Alta' para añadir tu primer seguro.")
+        st.info("No hay datos en 'Hoja1'.")
 
 with pestana2:
     st.subheader("Registrar nueva póliza")
-    with st.form("alta", clear_on_submit=True):
+    # TODO lo que esté dentro de este 'with' debe tener margen (sangría)
+    with st.form("formulario_alta", clear_on_submit=True):
         f1, f2 = st.columns(2)
         with f1:
             nombre = st.text_input("Seguro (ej. Coche)")
             cia = st.text_input("Compañía")
         with f2:
             cuota = st.number_input("Importe (€)", min_value=0.0)
-            fecha = st.date_input("Vencimiento")
+            fecha_alta = st.date_input("Vencimiento", value=hoy)
+        
         link = st.text_input("Enlace al documento (Drive/Dropbox)")
-if st.form_submit_button("Registrar en la Nube"):
-    # 1. Cargamos los datos actuales para estar seguros de la estructura
-    df_actual = cargar_datos()
-    
-    # 2. Creamos la fila nueva con los nombres de columna EXACTOS del Excel
-    # Asegúrate de que estos nombres coincidan con tus títulos en Google Sheets
-    nueva_fila = pd.DataFrame([{
-        "Seguro": nombre,
-        "Compania": cia,
-        "Prima": cuota,
-        "Vencimiento": str(fecha),
-        "Enlace_Doc": link
-    }])
-    
-    # 3. Concatenamos (unimos) la fila nueva
-    df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
-    
-    # 4. Limpiamos cualquier columna extra que se haya colado antes de subir
-    # Solo nos quedamos con las 5 columnas originales
-    columnas_ok = ["Seguro", "Compania", "Prima", "Vencimiento", "Enlace_Doc"]
-    df_final = df_final[columnas_ok]
-    
-    # 5. Subimos a Google Sheets
-    conn.update(spreadsheet=url, worksheet="Hoja1", data=df_final)
-    
-    st.success("✅ ¡Seguro guardado correctamente!")
-    st.balloons()
+        
+        # EL BOTÓN AHORA SÍ ESTÁ DENTRO DEL FORMULARIO
+        boton_enviar = st.form_submit_button("Registrar en la Nube")
+        
+        if boton_enviar:
+            if nombre and cia:
+                # 1. Cargamos datos frescos
+                df_actual = cargar_datos()
+                
+                # 2. Creamos fila nueva (con nombres exactos de columnas)
+                nueva_fila = pd.DataFrame([{
+                    "Seguro": nombre,
+                    "Compania": cia,
+                    "Prima": cuota,
+                    "Vencimiento": fecha_alta, # Se guarda como objeto fecha
+                    "Enlace_Doc": link
+                }])
+                
+                # 3.
