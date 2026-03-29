@@ -37,26 +37,23 @@ proximos_30 = len(df_proximos[(df_proximos['Vencimiento'] - hoy).map(lambda x: 0
 hoy = date.today()
 margen_aviso = hoy + timedelta(days=45)
 
-# Forzamos que lea el DÍA primero para evitar errores (07/10 vs 10/07)
-df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento'], dayfirst=True, errors='coerce').dt.date
+# Limpiamos la columna de posibles espacios en blanco y forzamos el formato
+df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento'], dayfirst=True, errors='coerce')
 
-# Filtramos los que están en el rango de 45 días
+# Creamos una columna auxiliar solo para el cálculo (sin horas, solo fecha)
+df_seguros['Fecha_Clean'] = df_seguros['Vencimiento'].dt.date
+
+# Filtramos los avisos usando la fecha limpia
 df_alertas = df_seguros[
-    (df_seguros['Vencimiento'] <= margen_aviso) & 
-    (df_seguros['Vencimiento'] >= hoy)
-]
+    (df_seguros['Fecha_Clean'] <= margen_aviso) & 
+    (df_seguros['Fecha_Clean'] >= hoy)
+].copy()
 
-# --- SEMÁFORO VISUAL DE COLORES ---
+# --- SEMÁFORO VISUAL ---
 if not df_alertas.empty:
     for _, fila in df_alertas.iterrows():
-        dias_restantes = (fila['Vencimiento'] - hoy).days
-        
-        if dias_restantes <= 7:
-            st.error(f"🚨 **URGENTE**: El seguro de **{fila['Seguro']}** vence en {dias_restantes} días ({fila['Vencimiento']}).")
-        elif dias_restantes <= 15:
-            st.warning(f"⚠️ **ATENCIÓN**: **{fila['Seguro']}** vence en {dias_restantes} días. ¡Revisa la oferta!")
-        else:
-            st.info(f"📅 **PRÓXIMO VENCIMIENTO**: **{fila['Seguro']}** vence el {fila['Vencimiento']} (en {dias_restantes} días).")
+        dias_restantes = (fila['Fecha_Clean'] - hoy).days
+        st.info(f"📅 **AVISO**: {fila['Seguro']} vence en {dias_restantes} días ({fila['Fecha_Clean']}).")
 
 # --- MÉTRICAS GENERALES ---
 total_anual = pd.to_numeric(df_seguros['Prima'], errors='coerce').sum()
