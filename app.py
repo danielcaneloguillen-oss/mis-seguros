@@ -107,9 +107,30 @@ with pestana2:
             cuota = st.number_input("Importe (€)", min_value=0.0)
             fecha = st.date_input("Vencimiento")
         link = st.text_input("Enlace al documento (Drive/Dropbox)")
-        if st.form_submit_button("Confirmar Alta"):
-            nueva = pd.DataFrame([[nombre, cia, cuota, str(fecha), link]], columns=df_seguros.columns)
-            df_final = pd.concat([df_seguros, nueva], ignore_index=True)
-            conn.update(spreadsheet=url, data=df_final)
-            st.balloons()
-            st.rerun()
+        if st.button("Registrar en la Nube"):
+    # 1. Cargamos los datos actuales para estar seguros de la estructura
+    df_actual = cargar_datos()
+    
+    # 2. Creamos la fila nueva con los nombres de columna EXACTOS del Excel
+    # Asegúrate de que estos nombres coincidan con tus títulos en Google Sheets
+    nueva_fila = pd.DataFrame([{
+        "Seguro": nombre,
+        "Compania": cia,
+        "Prima": cuota,
+        "Vencimiento": str(fecha),
+        "Enlace_Doc": link
+    }])
+    
+    # 3. Concatenamos (unimos) la fila nueva
+    df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
+    
+    # 4. Limpiamos cualquier columna extra que se haya colado antes de subir
+    # Solo nos quedamos con las 5 columnas originales
+    columnas_ok = ["Seguro", "Compania", "Prima", "Vencimiento", "Enlace_Doc"]
+    df_final = df_final[columnas_ok]
+    
+    # 5. Subimos a Google Sheets
+    conn.update(spreadsheet=url, worksheet="Hoja1", data=df_final)
+    
+    st.success("✅ ¡Seguro guardado correctamente!")
+    st.balloons()
