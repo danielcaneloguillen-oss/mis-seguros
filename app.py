@@ -20,16 +20,26 @@ df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento']).dt.date
 st.title("📑 Mis Pólizas")
 st.caption("Gestión simplificada • Diseño Claro y Moderno")
 
-# Resumen de gastos (Métricas)
-total_anual = df_seguros['Prima'].sum()
-proximos_30 = len(df_seguros[(df_seguros['Vencimiento'] - date.today()).dt.days <= 30])
+# --- CÁLCULO DE GASTOS Y ALERTAS ---
+hoy = date.today()
 
+# Convertimos la columna de texto a "Fecha" de verdad para que Python la entienda
+df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento'], errors='coerce').dt.date
+
+# Calculamos el total de dinero (solo de las filas que tengan número)
+total_anual = pd.to_numeric(df_seguros['Prima'], errors='coerce').sum()
+
+# Contamos cuántos vencen en los próximos 30 días
+df_proximos = df_seguros.dropna(subset=['Vencimiento'])
+proximos_30 = len(df_proximos[(df_proximos['Vencimiento'] - hoy).map(lambda x: 0 <= x.days <= 30)])
+
+# --- DISEÑO DE TARJETAS (Métricas) ---
 m1, m2, m3 = st.columns(3)
 m1.metric("Inversión Anual", f"{total_anual:,.2f} €")
 m2.metric("Total Seguros", len(df_seguros))
-m3.metric("Vencimientos < 30 días", proximos_30)
+m3.metric("Próximos Vencimientos", proximos_30)
 
-st.write("") 
+st.write("---")
 
 # --- NAVEGACIÓN ---
 pestana1, pestana2 = st.tabs(["🔍 Ver Mis Seguros", "➕ Nueva Alta"])
