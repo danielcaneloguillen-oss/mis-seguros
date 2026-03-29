@@ -37,8 +37,10 @@ proximos_30 = len(df_proximos[(df_proximos['Vencimiento'] - hoy).map(lambda x: 0
 hoy = date.today()
 margen_aviso = hoy + timedelta(days=45)
 
-# Convertimos y limpiamos fechas
-df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento'], errors='coerce').dt.date
+# Forzamos que lea el DÍA primero para evitar errores (07/10 vs 10/07)
+df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento'], dayfirst=True, errors='coerce').dt.date
+
+# Filtramos los que están en el rango de 45 días
 df_alertas = df_seguros[
     (df_seguros['Vencimiento'] <= margen_aviso) & 
     (df_seguros['Vencimiento'] >= hoy)
