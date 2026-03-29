@@ -10,8 +10,8 @@ url = st.secrets["connections"]["gsheets"]["spreadsheet"]
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def cargar_datos():
-    # Cargamos siempre la Hoja1 para evitar errores de pestaña vacía
-    df = conn.read(spreadsheet=url, worksheet="Hoja1", usecols=[0, 1, 2, 3, 4])
+    # Esta versión es mucho más sencilla y directa
+    df = conn.read(spreadsheet=url)
     return df.dropna(how="all")
 
 # --- CARGA Y LIMPIEZA INICIAL ---
