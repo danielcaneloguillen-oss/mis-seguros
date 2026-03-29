@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#2E5BFF"          # Azul moderno para acentos
+backgroundColor = "#FFFFFF"       # Blanco puro de fondo
+secondaryBackgroundColor = "#F0F2F6" # Gris suave para secciones
+textColor = "#1A1C1E"             # Texto oscuro legible
+font = "sans serif"
