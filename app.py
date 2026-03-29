@@ -128,7 +128,7 @@ with pestana2:
                 df_final = df_final[columnas_ok]
                 
                 # 5. GUARDADO CRÍTICO: Forzamos el nombre de la hoja que acabas de cambiar
-                conn.update(spreadsheet=url, worksheet="Hoja1", data=df_final)
+                conn.update(spreadsheet=url, data=df_final)
                 
                 # 6. LIMPIEZA DE MEMORIA (Para que aparezca al instante)
                 st.cache_data.clear() 
