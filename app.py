@@ -107,7 +107,7 @@ with pestana2:
             cuota = st.number_input("Importe (€)", min_value=0.0)
             fecha = st.date_input("Vencimiento")
         link = st.text_input("Enlace al documento (Drive/Dropbox)")
-if st.button("Registrar en la Nube"):
+if st.form_submit_button("Registrar en la Nube"):
     # 1. Cargamos los datos actuales para estar seguros de la estructura
     df_actual = cargar_datos()
     
