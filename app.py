@@ -92,7 +92,6 @@ with pestana1:
 
 with pestana2:
     st.subheader("Registrar nueva póliza")
-    # TODO lo que esté dentro de este 'with' debe tener margen (sangría)
     with st.form("formulario_alta", clear_on_submit=True):
         f1, f2 = st.columns(2)
         with f1:
@@ -104,21 +103,37 @@ with pestana2:
         
         link = st.text_input("Enlace al documento (Drive/Dropbox)")
         
-        # EL BOTÓN AHORA SÍ ESTÁ DENTRO DEL FORMULARIO
+        # El botón de enviar
         boton_enviar = st.form_submit_button("Registrar en la Nube")
         
         if boton_enviar:
             if nombre and cia:
-                # 1. Cargamos datos frescos
+                # 1. Cargamos datos frescos para no sobreescribir
                 df_actual = cargar_datos()
                 
-                # 2. Creamos fila nueva (con nombres exactos de columnas)
+                # 2. Creamos la nueva fila
                 nueva_fila = pd.DataFrame([{
                     "Seguro": nombre,
                     "Compania": cia,
                     "Prima": cuota,
-                    "Vencimiento": fecha_alta, # Se guarda como objeto fecha
+                    "Vencimiento": fecha_alta,
                     "Enlace_Doc": link
                 }])
                 
-                # 3.
+                # 3. Unimos los datos antiguos con el nuevo
+                df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
+                
+                # 4. Forzamos que solo se guarden estas 5 columnas
+                columnas_ok = ["Seguro", "Compania", "Prima", "Vencimiento", "Enlace_Doc"]
+                df_final = df_final[columnas_ok]
+                
+                # 5. GUARDADO CRÍTICO: Forzamos el nombre de la hoja que acabas de cambiar
+                conn.update(spreadsheet=url, worksheet="Hoja1", data=df_final)
+                
+                # 6. LIMPIEZA DE MEMORIA (Para que aparezca al instante)
+                st.cache_data.clear() 
+                st.success(f"✅ ¡{nombre} guardado correctamente!")
+                st.balloons()
+                st.rerun() 
+            else:
+                st.error("Por favor, rellena al menos el nombre y la compañía.")
