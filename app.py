@@ -33,11 +33,35 @@ total_anual = pd.to_numeric(df_seguros['Prima'], errors='coerce').sum()
 df_proximos = df_seguros.dropna(subset=['Vencimiento'])
 proximos_30 = len(df_proximos[(df_proximos['Vencimiento'] - hoy).map(lambda x: 0 <= x.days <= 30)])
 
-# --- DISEÑO DE TARJETAS (Métricas) ---
+# --- CONFIGURACIÓN DE ALERTAS (45 DÍAS) ---
+hoy = date.today()
+margen_aviso = hoy + timedelta(days=45)
+
+# Convertimos y limpiamos fechas
+df_seguros['Vencimiento'] = pd.to_datetime(df_seguros['Vencimiento'], errors='coerce').dt.date
+df_alertas = df_seguros[
+    (df_seguros['Vencimiento'] <= margen_aviso) & 
+    (df_seguros['Vencimiento'] >= hoy)
+]
+
+# --- SEMÁFORO VISUAL DE COLORES ---
+if not df_alertas.empty:
+    for _, fila in df_alertas.iterrows():
+        dias_restantes = (fila['Vencimiento'] - hoy).days
+        
+        if dias_restantes <= 7:
+            st.error(f"🚨 **URGENTE**: El seguro de **{fila['Seguro']}** vence en {dias_restantes} días ({fila['Vencimiento']}).")
+        elif dias_restantes <= 15:
+            st.warning(f"⚠️ **ATENCIÓN**: **{fila['Seguro']}** vence en {dias_restantes} días. ¡Revisa la oferta!")
+        else:
+            st.info(f"📅 **PRÓXIMO VENCIMIENTO**: **{fila['Seguro']}** vence el {fila['Vencimiento']} (en {dias_restantes} días).")
+
+# --- MÉTRICAS GENERALES ---
+total_anual = pd.to_numeric(df_seguros['Prima'], errors='coerce').sum()
 m1, m2, m3 = st.columns(3)
 m1.metric("Inversión Anual", f"{total_anual:,.2f} €")
 m2.metric("Total Seguros", len(df_seguros))
-m3.metric("Próximos Vencimientos", proximos_30)
+m3.metric("Avisos activos (<45d)", len(df_alertas))
 
 st.write("---")
 
